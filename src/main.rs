@@ -18,11 +18,7 @@ mod utils;
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    signature::{read_keypair_file, Keypair},
-};
+use solana_sdk::signature::{read_keypair_file, Keypair};
 
 struct Miner {
     pub keypair_filepath: Option<String>,
@@ -242,7 +238,7 @@ async fn main() {
             miner.mine(args.threads).await;
         }
         Commands::Claim(args) => {
-            miner.claim(args.beneficiary, args.amount).await;
+            miner.claim(cluster, args.beneficiary, args.amount).await;
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {

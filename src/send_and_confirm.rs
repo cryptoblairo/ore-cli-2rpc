@@ -5,11 +5,12 @@ use std::{
 
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
+    nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
 };
 use solana_program::instruction::Instruction;
 use solana_sdk::{
-    commitment_config::CommitmentLevel,
+    commitment_config::{CommitmentConfig, CommitmentLevel},
     compute_budget::ComputeBudgetInstruction,
     signature::{Signature, Signer},
     transaction::Transaction,
@@ -53,8 +54,11 @@ impl Miner {
         };
 
         // Return error if balance is zero
-        let balance = client.get_balance(&signer.pubkey()).await.unwrap();
-        if balance <= 0 {
+        let balance = client
+            .get_balance_with_commitment(&signer.pubkey(), CommitmentConfig::confirmed())
+            .await
+            .unwrap();
+        if balance.value <= 0 {
             return Err(ClientError {
                 request: None,
                 kind: ClientErrorKind::Custom("Insufficient SOL balance".into()),
@@ -62,43 +66,49 @@ impl Miner {
         }
 
         // Build tx
-        let (_hash, slot) = client
-            .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
+        let (mut hash, mut slot) = client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
             .await
             .unwrap();
-        let send_cfg = RpcSendTransactionConfig {
+        let mut send_cfg = RpcSendTransactionConfig {
             skip_preflight: true,
             preflight_commitment: Some(CommitmentLevel::Confirmed),
             encoding: Some(UiTransactionEncoding::Base64),
             max_retries: Some(RPC_RETRIES),
-            min_context_slot: None,
+            min_context_slot: Some(slot),
         };
         let mut tx = Transaction::new_with_payer(ixs, Some(&signer.pubkey()));
 
-        // Simulate tx
-        let mut sim_attempts = 0;
-        'simulate: loop {
-            let sim_res = client
-                .simulate_transaction_with_config(
-                    &tx,
-                    RpcSimulateTransactionConfig {
-                        sig_verify: false,
-                        replace_recent_blockhash: true,
-                        commitment: Some(self.rpc_client.commitment()),
-                        encoding: Some(UiTransactionEncoding::Base64),
-                        accounts: None,
-                        min_context_slot: Some(slot),
-                        inner_instructions: false,
-                    },
-                )
-                .await;
-            match sim_res {
-                Ok(sim_res) => {
-                    if let Some(err) = sim_res.value.err {
-                        println!("Simulaton error: {:?}", err);
-                        sim_attempts += 1;
-                    } else if let Some(units_consumed) = sim_res.value.units_consumed {
-                        if dynamic_cus {
+        // Simulate if necessary
+        if dynamic_cus {
+            let mut sim_attempts = 0;
+            'simulate: loop {
+                let sim_res = client
+                    .simulate_transaction_with_config(
+                        &tx,
+                        RpcSimulateTransactionConfig {
+                            sig_verify: false,
+                            replace_recent_blockhash: true,
+                            commitment: Some(CommitmentConfig::confirmed()),
+                            encoding: Some(UiTransactionEncoding::Base64),
+                            accounts: None,
+                            min_context_slot: None,
+                            inner_instructions: false,
+                        },
+                    )
+                    .await;
+                match sim_res {
+                    Ok(sim_res) => {
+                        if let Some(err) = sim_res.value.err {
+                            println!("Simulaton error: {:?}", err);
+                            sim_attempts += 1;
+                            if sim_attempts.gt(&SIMULATION_RETRIES) {
+                                return Err(ClientError {
+                                    request: None,
+                                    kind: ClientErrorKind::Custom("Simulation failed".into()),
+                                });
+                            }
+                        } else if let Some(units_consumed) = sim_res.value.units_consumed {
                             println!("Dynamic CUs: {:?}", units_consumed);
                             let cu_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(
                                 units_consumed as u32 + 1000,
@@ -109,34 +119,26 @@ impl Miner {
                             final_ixs.extend_from_slice(&[cu_budget_ix, cu_price_ix]);
                             final_ixs.extend_from_slice(ixs);
                             tx = Transaction::new_with_payer(&final_ixs, Some(&signer.pubkey()));
+                            break 'simulate;
                         }
-                        break 'simulate;
+                    }
+                    Err(err) => {
+                        println!("Simulaton error: {:?}", err);
+                        sim_attempts += 1;
+                        if sim_attempts.gt(&SIMULATION_RETRIES) {
+                            return Err(ClientError {
+                                request: None,
+                                kind: ClientErrorKind::Custom("Simulation failed".into()),
+                            });
+                        }
                     }
                 }
-                Err(err) => {
-                    println!("Simulaton error: {:?}", err);
-                    sim_attempts += 1;
-                }
-            }
-
-            // Abort if sim fails
-            if sim_attempts.gt(&SIMULATION_RETRIES) {
-                return Err(ClientError {
-                    request: None,
-                    kind: ClientErrorKind::Custom("Simulation failed".into()),
-                });
             }
         }
 
-        // Update hash before sending transactions
-        let (hash, _slot) = client
-            .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
-            .await
-            .unwrap();
-
         // Submit tx
         tx.sign(&[&signer], hash);
-        // let mut sigs = vec![];
+        let mut sigs = vec![];
         let mut attempts = 0;
         let mut submit_attempts = 0;
         loop {
@@ -156,7 +158,7 @@ impl Miner {
                         std::thread::sleep(Duration::from_millis(confirm_delay));
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
-                                println!("Confirmation: {:?}", signature_statuses.value[0]);
+                                println!("Confirms: {:?}", signature_statuses.value);
                                 for signature_status in signature_statuses.value {
                                     if let Some(signature_status) = signature_status.as_ref() {
                                         if signature_status.confirmation_status.is_some() {
@@ -203,6 +205,7 @@ impl Miner {
                     println!("Submit error : {:?}", err.kind().to_string());
                 }
             }
+            stdout.flush().ok();
 
             // Retry
             stdout.flush().ok();
