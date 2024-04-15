@@ -1,6 +1,6 @@
 # Ore CLI 2 RPC
 
-A custom command line interface for the Ore program that utilizes **2 rpcs**, one for sending the **sendTransaction** method, the other one to do all the rest. (Actually using v0.4.12-alpha ore cli version)
+A custom command line interface for the Ore program that utilizes **2 rpcs**, one for sending the **sendTransaction** method, the other one to do all the rest. (Actually using v0.4.10 ore cli version)
 
 ## Requirements
 

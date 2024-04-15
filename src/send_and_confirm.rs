@@ -5,7 +5,6 @@ use std::{
 
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
-    nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
 };
 use solana_program::instruction::Instruction;
@@ -66,11 +65,11 @@ impl Miner {
         }
 
         // Build tx
-        let (mut hash, mut slot) = client
+        let (hash, slot) = client
             .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
             .await
             .unwrap();
-        let mut send_cfg = RpcSendTransactionConfig {
+        let send_cfg = RpcSendTransactionConfig {
             skip_preflight: true,
             preflight_commitment: Some(CommitmentLevel::Confirmed),
             encoding: Some(UiTransactionEncoding::Base64),
@@ -138,7 +137,7 @@ impl Miner {
 
         // Submit tx
         tx.sign(&[&signer], hash);
-        let mut sigs = vec![];
+        // let mut sigs = vec![];
         let mut attempts = 0;
         let mut submit_attempts = 0;
         loop {

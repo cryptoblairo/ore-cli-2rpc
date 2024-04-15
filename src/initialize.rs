@@ -1,5 +1,4 @@
 use ore::TREASURY_ADDRESS;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{commitment_config::CommitmentConfig, signature::Signer};
 
 use crate::Miner;
@@ -8,8 +7,7 @@ impl Miner {
     pub async fn initialize(&self) {
         // Return early if program is initialized
         let signer = self.signer();
-        let client =
-            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
+        let client = self.rpc_client.clone();
         if client.get_account(&TREASURY_ADDRESS).await.is_ok() {
             return;
         }
