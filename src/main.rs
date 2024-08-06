@@ -30,6 +30,9 @@ struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: u64,
     pub rpc_client: Arc<RpcClient>,
+    pub confirm_delay: u64,
+    pub gateway_delay: u64,
+    pub gateway_retries: u64
 }
 
 #[derive(Subcommand, Debug)]
@@ -105,6 +108,33 @@ struct Args {
         global = true
     )]
     priority_fee: u64,
+    
+    #[arg(
+        long,
+        value_name = "CONFIRM DELAY",
+        help = "The number of milliseconds waiting for confirmation before rechecking for confirmation",
+        default_value = "3000",
+        global = true
+    )]
+    pub confirm_delay: u64,
+
+    #[arg(
+        long,
+        value_name = "GATEWAY DELAY",
+        help = "The number of milliseconds waiting for before submitting a new transaction",
+        default_value = "2000",
+        global = true
+    )]
+    pub gateway_delay: u64,
+
+    #[arg(
+        long,
+        value_name = "GATEWAY RETRIES",
+        help = "The maximum number of tries before mining a new hash",
+        default_value = "100",
+        global = true
+    )]
+    pub gateway_retries: u64,
 
     #[command(subcommand)]
     command: Commands,
@@ -135,6 +165,9 @@ async fn main() {
         Arc::new(rpc_client),
         args.priority_fee,
         Some(default_keypair),
+        args.confirm_delay,
+        args.gateway_delay,
+        args.gateway_retries
     ));
 
     // Execute user command.
@@ -181,11 +214,17 @@ impl Miner {
         rpc_client: Arc<RpcClient>,
         priority_fee: u64,
         keypair_filepath: Option<String>,
+        confirm_delay: u64,
+        gateway_delay: u64,
+        gateway_retries: u64
     ) -> Self {
         Self {
             rpc_client,
             keypair_filepath,
             priority_fee,
+            confirm_delay,
+            gateway_delay,
+            gateway_retries
         }
     }
 

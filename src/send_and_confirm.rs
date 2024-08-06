@@ -24,11 +24,10 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 1;
 
-const CONFIRM_DELAY: u64 = 0;
-const GATEWAY_DELAY: u64 = 300;
+// const CONFIRM_DELAY: u64 = 0;
+// const GATEWAY_DELAY: u64 = 300;
 
 pub enum ComputeBudget {
     Dynamic,
@@ -45,6 +44,11 @@ impl Miner {
         let progress_bar = spinner::new_progress_bar();
         let signer = self.signer();
         let client = self.rpc_client.clone();
+
+        // Set delay constants
+        let confirm_delay: u64 = self.confirm_delay;
+        let gateway_delay: u64 = self.gateway_delay;
+        let gateway_retries: u64 = self.gateway_retries;
 
         // Return error, if balance is zero
         if let Ok(balance) = client.get_balance(&signer.pubkey()).await {
@@ -105,7 +109,7 @@ impl Miner {
 
                     // Confirm the tx landed
                     for _ in 0..CONFIRM_RETRIES {
-                        std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+                        std::thread::sleep(Duration::from_millis(confirm_delay));
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
                                 for status in signature_statuses.value {
@@ -162,9 +166,9 @@ impl Miner {
             }
 
             // Retry
-            std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            std::thread::sleep(Duration::from_millis(gateway_delay));
             attempts += 1;
-            if attempts > GATEWAY_RETRIES {
+            if attempts > gateway_retries {
                 progress_bar.finish_with_message(format!("{}: Max retries", "ERROR".bold().red()));
                 return Err(ClientError {
                     request: None,
