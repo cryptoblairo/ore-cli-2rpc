@@ -1,17 +1,17 @@
 [package]
-name = "ore-cli"
-version = "1.1.1"
+name = "ore-cli-blairo"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "A command line interface for ORE cryptocurrency mining."
-documentation = "https://ore.supply"
-homepage = "https://ore.supply"
-repository = "https://github.com/regolith-labs/ore-cli"
+description = "A command line interface for ORE V2 cryptocurrency mining."
+documentation = "https://github.com/cryptoblairo/ore-cli-blairo"
+homepage = "https://github.com/cryptoblairo/ore-cli-blairo"
+repository = "https://github.com/cryptoblairo/ore-cli-blairo"
 readme = "./README.md"
 keywords = ["solana", "crypto", "mining"]
 
 [[bin]]
-name = "ore"
+name = "ore2blairo"
 path = "src/main.rs"
 
 [features]
