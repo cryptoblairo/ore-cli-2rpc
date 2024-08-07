@@ -2761,7 +2761,7 @@ dependencies = [
 
 [[package]]
 name = "ore-cli-blairo"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bincode",
  "bs58 0.5.1",

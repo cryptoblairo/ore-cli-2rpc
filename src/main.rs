@@ -165,6 +165,7 @@ struct Args {
         global = true
     )]
     dynamic_fee_strategy: Option<String>,
+    
     #[arg(
         long,
         value_name = "DYNAMIC_FEE_MAX",

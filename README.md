@@ -41,7 +41,10 @@ ore2blairo mine \
     --threads 4 \
     --confirm-delay 3000 \
     --gateway-delay 2000 \
-    --gateway-retries 50
+    --gateway-retries 50 \
+    --dynamic-fee-url your_helius_or_triton_rpc \
+    --dynamic-fee-strategy "helius" \
+    --dynamic-fee-max 100000
 ```
 
 ### 'confirm_delay' & 'gateway_delay' options
