@@ -15,6 +15,7 @@ mod send_and_confirm;
 mod stake;
 mod upgrade;
 mod utils;
+mod dynamic_fee;
 
 use std::sync::Arc;
 
@@ -28,11 +29,15 @@ use solana_sdk::{
 
 struct Miner {
     pub keypair_filepath: Option<String>,
-    pub priority_fee: u64,
+    pub priority_fee: Option<u64>,
+    pub dynamic_fee_url: Option<String>,
+    pub dynamic_fee_strategy: Option<String>,
+    pub dynamic_fee_max: Option<u64>,
     pub rpc_client: Arc<RpcClient>,
     pub confirm_delay: u64,
     pub gateway_delay: u64,
     pub gateway_retries: u64
+    pub fee_payer_filepath: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -102,6 +107,14 @@ struct Args {
 
     #[arg(
         long,
+        value_name = "FEE_PAYER_FILEPATH",
+        help = "Filepath to keypair to use for fee payer",
+        global = true
+    )]
+    fee_payer_filepath: Option<String>,
+
+    #[arg(
+        long,
         value_name = "MICROLAMPORTS",
         help = "Number of microlamports to pay as priority fee per transaction",
         default_value = "0",
@@ -135,6 +148,33 @@ struct Args {
         global = true
     )]
     pub gateway_retries: u64,
+    priority_fee: Option<u64>,
+
+    #[arg(
+        long,
+        value_name = "DYNAMIC_FEE_URL",
+        help = "RPC URL to use for dynamic fee estimation. If set will enable dynamic fee pricing instead of static priority fee pricing.",
+        global = true
+    )]
+    dynamic_fee_url: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "DYNAMIC_FEE_STRATEGY",
+        help = "Strategy to use for dynamic fee estimation. Must be one of 'helius', or 'triton'.",
+        default_value = "helius",
+        global = true
+    )]
+    dynamic_fee_strategy: Option<String>,
+    #[arg(
+        long,
+        value_name = "DYNAMIC_FEE_MAX",
+        help = "Maximum priority fee to use for dynamic fee estimation.",
+        default_value = "500000",
+        global = true
+    )]
+    dynamic_fee_max: Option<u64>,
+    
 
     #[command(subcommand)]
     command: Commands,
@@ -158,7 +198,8 @@ async fn main() {
 
     // Initialize miner.
     let cluster = args.rpc.unwrap_or(cli_config.json_rpc_url);
-    let default_keypair = args.keypair.unwrap_or(cli_config.keypair_path);
+    let default_keypair = args.keypair.unwrap_or(cli_config.keypair_path.clone());
+    let fee_payer_filepath = args.fee_payer_filepath.unwrap_or(cli_config.keypair_path.clone());
     let rpc_client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
 
     let miner = Arc::new(Miner::new(
@@ -168,6 +209,10 @@ async fn main() {
         args.confirm_delay,
         args.gateway_delay,
         args.gateway_retries
+        args.dynamic_fee_url,
+        args.dynamic_fee_strategy,
+        args.dynamic_fee_max,
+        Some(fee_payer_filepath),
     ));
 
     // Execute user command.
@@ -212,11 +257,15 @@ async fn main() {
 impl Miner {
     pub fn new(
         rpc_client: Arc<RpcClient>,
-        priority_fee: u64,
+        priority_fee: Option<u64>,
         keypair_filepath: Option<String>,
         confirm_delay: u64,
         gateway_delay: u64,
         gateway_retries: u64
+        dynamic_fee_url: Option<String>,
+        dynamic_fee_strategy: Option<String>,
+        dynamic_fee_max: Option<u64>,
+        fee_payer_filepath: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -225,6 +274,10 @@ impl Miner {
             confirm_delay,
             gateway_delay,
             gateway_retries
+            dynamic_fee_url,
+            dynamic_fee_strategy,
+            dynamic_fee_max,
+            fee_payer_filepath
         }
     }
 
@@ -233,6 +286,14 @@ impl Miner {
             Some(filepath) => read_keypair_file(filepath.clone())
                 .expect(format!("No keypair found at {}", filepath).as_str()),
             None => panic!("No keypair provided"),
+        }
+    }
+
+    pub fn fee_payer(&self) -> Keypair {
+        match self.fee_payer_filepath.clone() {
+            Some(filepath) => read_keypair_file(filepath.clone())
+                .expect(format!("No fee payer keypair found at {}", filepath).as_str()),
+            None => panic!("No fee payer keypair provided"),
         }
     }
 }
