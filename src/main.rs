@@ -36,7 +36,7 @@ struct Miner {
     pub rpc_client: Arc<RpcClient>,
     pub confirm_delay: u64,
     pub gateway_delay: u64,
-    pub gateway_retries: u64
+    pub gateway_retries: u64,
     pub fee_payer_filepath: Option<String>,
 }
 
@@ -120,7 +120,7 @@ struct Args {
         default_value = "0",
         global = true
     )]
-    priority_fee: u64,
+    priority_fee: Option<u64>,
     
     #[arg(
         long,
@@ -148,7 +148,6 @@ struct Args {
         global = true
     )]
     pub gateway_retries: u64,
-    priority_fee: Option<u64>,
 
     #[arg(
         long,
@@ -208,7 +207,7 @@ async fn main() {
         Some(default_keypair),
         args.confirm_delay,
         args.gateway_delay,
-        args.gateway_retries
+        args.gateway_retries,
         args.dynamic_fee_url,
         args.dynamic_fee_strategy,
         args.dynamic_fee_max,
@@ -261,7 +260,7 @@ impl Miner {
         keypair_filepath: Option<String>,
         confirm_delay: u64,
         gateway_delay: u64,
-        gateway_retries: u64
+        gateway_retries: u64,
         dynamic_fee_url: Option<String>,
         dynamic_fee_strategy: Option<String>,
         dynamic_fee_max: Option<u64>,
@@ -273,7 +272,7 @@ impl Miner {
             priority_fee,
             confirm_delay,
             gateway_delay,
-            gateway_retries
+            gateway_retries,
             dynamic_fee_url,
             dynamic_fee_strategy,
             dynamic_fee_max,
